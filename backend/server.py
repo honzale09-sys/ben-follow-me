@@ -46,6 +46,7 @@ def clean_product(d, cat):
     if api_img:
         item['image'] = img
     item['mixColors'] = core.loc(d, 'mixColors', 300)
+    item['pack'] = core.text(d, 'pack', 20)
     return item
 
 

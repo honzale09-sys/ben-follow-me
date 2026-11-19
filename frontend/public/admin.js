@@ -330,6 +330,7 @@
         ${fSelect('art', 'Tvar ilustrace', Object.entries(ART_TYPES), p.art)}
         ${fText('price', 'Cena (Kč)', p.price, { required: true, type: 'number', max: 7 })}
         ${fText('oldPrice', 'Původní cena (Kč) – vyplňte pro AKCI', p.oldPrice || '', { type: 'number', max: 7, placeholder: 'jen u slevy' })}
+        ${fText('pack', 'Počet ks v balení', p.pack || '', { max: 20, placeholder: 'např. 3' })}
         ${fLoc('tag', 'Štítek', p.tag, { placeholder: 'např. Novinka', max: 40 })}
         <div class="form-field full">
           <label>Barvy <span class="hint">– vyberte jednu nebo víc (mix barev). První vybraná je hlavní a kreslí se podle ní ilustrace.</span></label>
@@ -395,7 +396,7 @@
     return {
       name: locVal('name'), cat: val('cat'), type: val('type'), brand: val('brand'), art: val('art'),
       price: val('price'), oldPrice: val('oldPrice'), tag: locVal('tag'),
-      colors: pickedColors, mixColors: locVal('mixColors'),
+      pack: val('pack'), colors: pickedColors, mixColors: locVal('mixColors'),
       image: photo, sizes: parseSizes(),
       soldOut: [...form.querySelectorAll('[name="soldOut"]:checked')].map(i => i.value),
       sizeChart: val('sizeChart'), material: locVal('material'), desc: locVal('desc'),

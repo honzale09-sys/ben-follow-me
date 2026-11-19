@@ -332,6 +332,7 @@
           ${brand ? `<div class="pdp-brand">${e(brand.name)}</div>` : ''}
           <h1>${e(name)}</h1>
           ${priceHTML(p)}
+          ${p.pack ? `<p class="pack-note" data-testid="pack-note">${t('pack')}: <b>${e(p.pack)} ${t('pcs')}</b></p>` : ''}
           ${L(p.desc) ? `<p class="desc">${e(L(p.desc))}</p>` : ''}
 
           ${cs.length ? `<div class="field-label"><span>${cs.length > 1 ? t('colors') : t('color')}</span></div>
