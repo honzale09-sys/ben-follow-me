@@ -20,7 +20,6 @@ load_dotenv(ROOT_DIR / '.env')
 
 db = MongoClient(os.environ['MONGO_URL'])[os.environ['DB_NAME']]
 lock = threading.Lock()
-tokens = {}
 
 
 def load_catalog():
@@ -57,8 +56,8 @@ def err(status, msg):
 
 def authorized(request: Request):
     auth = request.headers.get('Authorization', '')
-    exp = tokens.get(auth[7:] if auth.startswith('Bearer ') else '')
-    return bool(exp and exp > time.time())
+    token = auth[7:] if auth.startswith('Bearer ') else ''
+    return bool(token and db.sessions.find_one({'_id': token, 'exp': {'$gt': time.time()}}))
 
 
 async def body(request: Request):
@@ -88,7 +87,8 @@ async def login(request: Request):
     data = await body(request) or {}
     if secrets.compare_digest(str(data.get('password') or ''), os.environ['ADMIN_PASSWORD']):
         token = secrets.token_urlsafe(24)
-        tokens[token] = time.time() + core.TOKEN_TTL
+        db.sessions.delete_many({'exp': {'$lt': time.time()}})
+        db.sessions.insert_one({'_id': token, 'exp': time.time() + core.TOKEN_TTL})
         return {'token': token}
     time.sleep(1)
     return err(401, 'Nesprávné heslo.')
@@ -96,7 +96,7 @@ async def login(request: Request):
 
 @app.post('/api/logout')
 def logout(request: Request):
-    tokens.pop(request.headers.get('Authorization', '')[7:], None)
+    db.sessions.delete_one({'_id': request.headers.get('Authorization', '')[7:]})
     return {'ok': True}
 
 

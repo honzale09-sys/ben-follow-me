@@ -1,10 +1,10 @@
 // Pevná nastavení galerie followme. Kategorie, typy, značky, barvy a produkty
 // se spravují v administraci (ukládají se do data/catalog.json).
 
-const CONTACT_PHONE = '773 378 988';
+var CONTACT_PHONE = '773 378 988';
 
 // Rychlé vyplnění velikostí v administraci
-const SIZE_PRESETS = {
+var SIZE_PRESETS = {
   damske: ['XS', 'S', 'M', 'L', 'XL'],
   panske: ['S', 'M', 'L', 'XL', 'XXL'],
   podprsenky: ['70B', '75B', '75C', '80B', '80C', '85C', '85D'],
@@ -12,7 +12,7 @@ const SIZE_PRESETS = {
 };
 
 // Tvary ilustrací, které se zobrazí, když produkt nemá fotku
-const ART_TYPES = {
+var ART_TYPES = {
   briefs: 'Kalhotky', highwaist: 'Kalhotky s vysokým pasem', thong: 'Tanga',
   bra: 'Podprsenka', bralette: 'Bralette / sportovní', set: 'Souprava',
   body: 'Body', garter: 'Podvazkový pás', nightgown: 'Noční košile',
@@ -20,7 +20,7 @@ const ART_TYPES = {
 };
 
 // Tabulky velikostí (texty jsou v i18n.js)
-const SIZE_CHARTS = {
+var SIZE_CHARTS = {
   damske: 'Dámská (XS–XL)',
   panske: 'Pánská (S–XXL)',
   podprsenky: 'Podprsenky (70B–85D)',

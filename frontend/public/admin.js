@@ -1,5 +1,6 @@
 (() => {
   'use strict';
+  const { escapeHTML, productVisual, SIZE_CHARTS, SIZE_PRESETS, ART_TYPES, art } = window;
 
   const $ = sel => document.querySelector(sel);
   const e = escapeHTML;

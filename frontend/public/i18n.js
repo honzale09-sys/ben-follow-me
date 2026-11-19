@@ -140,7 +140,7 @@ const I18N = {
 };
 
 const LANG_KEY = 'followme-lang';
-let LANG = 'cs';
+var LANG = 'cs';
 try { if (localStorage.getItem(LANG_KEY) === 'vi') LANG = 'vi'; } catch (err) { /* bez úložiště zůstane čeština */ }
 
 function setLang(lang) {

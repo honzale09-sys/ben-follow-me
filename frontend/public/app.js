@@ -1,11 +1,11 @@
 (() => {
   'use strict';
-  const { L, t, escapeHTML } = window;
+  const { L, t, escapeHTML, productVisual, SIZE_PRESETS, art, sizeTable, setLang, CONTACT_PHONE } = window;
 
   const app = document.getElementById('app');
   const e = escapeHTML;
   const TEL = 'tel:+420' + CONTACT_PHONE.replace(/\s/g, '');
-  const czk = n => new Intl.NumberFormat(LANG === 'vi' ? 'vi-VN' : 'cs-CZ').format(n) + ' Kč';
+  const czk = n => new Intl.NumberFormat(window.LANG === 'vi' ? 'vi-VN' : 'cs-CZ').format(n) + ' Kč';
 
   let CAT = { categories: [], types: [], brands: [], colors: [], products: [] };
   let byId = {}, catById = {}, typeById = {}, brandById = {}, colorById = {};
@@ -106,11 +106,11 @@
   /* ---------- Hlavička a patička ---------- */
 
   function renderChrome() {
-    document.documentElement.lang = LANG;
+    document.documentElement.lang = window.LANG;
     document.querySelector('[data-nav-links]').innerHTML =
       CAT.categories.map(c => `<a href="#/kategorie/${c.id}" data-nav="${c.id}">${e(L(c.name))}</a>`).join('') +
       `<a href="#/akce" data-nav="akce" class="nav-sale">${t('sale')}</a>`;
-    document.querySelectorAll('[data-lang]').forEach(b => b.setAttribute('aria-pressed', b.dataset.lang === LANG));
+    document.querySelectorAll('[data-lang]').forEach(b => b.setAttribute('aria-pressed', b.dataset.lang === window.LANG));
     document.querySelectorAll('[data-phone-label]').forEach(el => { el.setAttribute('aria-label', t('callSeller')); });
     document.querySelector('[data-footer]').innerHTML = `
       <div>
