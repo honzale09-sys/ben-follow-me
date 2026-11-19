@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Administrace | followme</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="admin.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%232b2a2e'/%3E%3Ctext x='16' y='22' font-family='Georgia' font-size='18' text-anchor='middle' fill='%23e8c4bc'%3Ef%3C/text%3E%3C/svg%3E">
+</head>
+<body class="admin">
+  <!-- Přihlášení -->
+  <section class="login" data-login hidden>
+    <form class="login-card" data-login-form>
+      <div class="logo">follow<em>me</em></div>
+      <p class="muted">Administrace</p>
+      <div class="form-field">
+        <label for="password">Heslo</label>
+        <input id="password" type="password" autocomplete="current-password" required>
+      </div>
+      <p class="form-error" data-login-error></p>
+      <button class="btn btn-block" type="submit">Přihlásit se</button>
+      <a href="./" class="link">← Zpět na web</a>
+    </form>
+  </section>
+
+  <!-- Správa katalogu -->
+  <div data-panel hidden>
+    <header class="site-header">
+      <div class="wrap header-inner">
+        <a href="./" class="logo">follow<em>me</em></a>
+        <span class="admin-badge">Administrace</span>
+        <div class="admin-actions">
+          <a href="./" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">Zobrazit web ↗</a>
+          <button type="button" class="btn btn-ghost btn-sm" data-logout>Odhlásit</button>
+        </div>
+      </div>
+      <nav class="wrap admin-tabs" aria-label="Části katalogu">
+        <button type="button" data-tab="products" aria-current="page">Produkty</button>
+        <button type="button" data-tab="categories">Kategorie</button>
+        <button type="button" data-tab="types">Typy</button>
+        <button type="button" data-tab="brands">Značky</button>
+        <button type="button" data-tab="colors">Barvy</button>
+      </nav>
+    </header>
+
+    <main class="wrap admin-main">
+      <div class="admin-head">
+        <div>
+          <h1 data-tab-title>Produkty</h1>
+          <p class="muted" data-tab-note></p>
+        </div>
+        <button type="button" class="btn" data-new>+ Přidat</button>
+      </div>
+      <div class="toolbar" data-toolbar></div>
+      <div class="product-list" data-list></div>
+    </main>
+  </div>
+
+  <!-- Formulář (obsah se skládá podle části katalogu) -->
+  <dialog class="modal" data-editor>
+    <form class="modal-inner" data-form novalidate>
+      <div class="modal-head">
+        <h2 data-form-title></h2>
+        <button type="button" class="icon-btn" data-close aria-label="Zavřít">✕</button>
+      </div>
+      <div class="modal-body" data-form-body></div>
+      <div class="modal-foot">
+        <p class="form-error" data-form-error></p>
+        <button type="button" class="btn btn-ghost" data-close>Zrušit</button>
+        <button type="submit" class="btn" data-save>Uložit</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Potvrzení smazání -->
+  <dialog class="modal modal-sm" data-confirm>
+    <div class="modal-inner">
+      <div class="modal-body">
+        <h2>Opravdu smazat?</h2>
+        <p data-confirm-text></p>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" data-confirm-no>Ponechat</button>
+        <button type="button" class="btn btn-danger" data-confirm-yes>Smazat</button>
+      </div>
+    </div>
+  </dialog>
+
+  <div class="toast" role="status" aria-live="polite"></div>
+
+  <script src="data.js"></script>
+  <script src="art.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>

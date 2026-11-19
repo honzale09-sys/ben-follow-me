@@ -1,93 +1,187 @@
-import asyncio
-from contextlib import suppress
-from fastapi import FastAPI, APIRouter, Query
-from dotenv import load_dotenv
-from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
-from pymongo import ASCENDING, DESCENDING, IndexModel
+import base64
+import json
 import os
-import logging
+import re
+import secrets
+import threading
+import time
 from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List
-import uuid
-from datetime import datetime, timezone
 
+from dotenv import load_dotenv
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, Response
+from pymongo import MongoClient
+from starlette.middleware.cors import CORSMiddleware
+
+import followme_core as core
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
-
-# One entry per collection: every field a route filters, sorts or dedupes on. Add the index in the same edit as the query.
-INDEXES: dict[str, list[IndexModel]] = {
-    "status_checks": [
-        IndexModel([("id", ASCENDING)], name="id", unique=True),
-        IndexModel([("timestamp", DESCENDING)], name="timestamp_desc"),
-    ],
-}
+db = MongoClient(os.environ['MONGO_URL'])[os.environ['DB_NAME']]
+lock = threading.Lock()
+tokens = {}
 
 
-async def ensure_indexes() -> None:
-    for collection, models in INDEXES.items():
-        for model in models:  # one at a time so a bad spec skips only itself
-            try:
-                await db[collection].create_indexes([model])
-            except Exception as exc:  # never block boot on an index; the log line names what to fix
-                logging.getLogger(__name__).error("ensure_indexes(%s.%s): %s", collection, model.document["name"], exc)
+def load_catalog():
+    doc = db.catalog.find_one({'_id': 'main'}, {'_id': 0})
+    if not doc:
+        doc = json.loads((ROOT_DIR / 'catalog_seed.json').read_text(encoding='utf-8'))
+        db.catalog.replace_one({'_id': 'main'}, doc, upsert=True)
+    for key in core.COLLECTIONS:
+        doc.setdefault(key, [])
+    return doc
 
-# Create the main app without a prefix
+
+def save_catalog(cat):
+    db.catalog.replace_one({'_id': 'main'}, cat, upsert=True)
+
+
+def clean_product(d, cat):
+    img = d.get('image') or ''
+    api_img = img.startswith('api/uploads/')
+    item = core.clean_product({**d, 'image': img[4:] if api_img else (img or None)}, cat)
+    if api_img:
+        item['image'] = img
+    return item
+
+
+CLEANERS = {**core.CLEANERS, 'products': clean_product}
+
 app = FastAPI()
 
-# Create a router with the /api prefix
-api_router = APIRouter(prefix="/api")
+
+def err(status, msg):
+    return JSONResponse({'error': msg}, status_code=status)
 
 
-# Define Models
-class StatusCheck(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Ignore MongoDB's _id field
-    
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+def authorized(request: Request):
+    auth = request.headers.get('Authorization', '')
+    exp = tokens.get(auth[7:] if auth.startswith('Bearer ') else '')
+    return bool(exp and exp > time.time())
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
 
-# Add your routes to the router instead of directly to app
-@api_router.get("/")
-async def root():
-    return {"message": "Hello World"}
+async def body(request: Request):
+    raw = await request.body()
+    try:
+        return json.loads(raw.decode('utf-8') or '{}')
+    except ValueError:
+        return None
 
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
-    
-    # Convert to dict and serialize datetime to ISO string for MongoDB
-    doc = status_obj.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
-    
-    _ = await db.status_checks.insert_one(doc)
-    return status_obj
 
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks(limit: int = Query(20, ge=1, le=100)):
-    # Exclude MongoDB's _id field from the query results
-    status_checks = await db.status_checks.find({}, {"_id": 0}).sort("timestamp", -1).limit(limit).to_list(limit)
-    
-    # Convert ISO string timestamps back to datetime objects
-    for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
-    
-    return status_checks
+@app.get('/api/catalog')
+def get_catalog():
+    with lock:
+        return JSONResponse(load_catalog(), headers={'Cache-Control': 'no-store'})
 
-# Include the router in the main app
-app.include_router(api_router)
+
+@app.get('/api/uploads/{name}')
+def get_upload(name: str):
+    doc = db.uploads.find_one({'_id': name})
+    if not doc:
+        return err(404, 'Nenalezeno')
+    return Response(doc['data'], media_type=doc['type'], headers={'Cache-Control': 'public, max-age=31536000'})
+
+
+@app.post('/api/login')
+async def login(request: Request):
+    data = await body(request) or {}
+    if secrets.compare_digest(str(data.get('password') or ''), os.environ['ADMIN_PASSWORD']):
+        token = secrets.token_urlsafe(24)
+        tokens[token] = time.time() + core.TOKEN_TTL
+        return {'token': token}
+    time.sleep(1)
+    return err(401, 'Nesprávné heslo.')
+
+
+@app.post('/api/logout')
+def logout(request: Request):
+    tokens.pop(request.headers.get('Authorization', '')[7:], None)
+    return {'ok': True}
+
+
+@app.post('/api/upload')
+async def upload(request: Request):
+    if not authorized(request):
+        return err(401, 'Přihlášení vypršelo, přihlaste se prosím znovu.')
+    data = await body(request) or {}
+    m = re.fullmatch(r'data:(image/[a-z]+);base64,(.+)', str(data.get('data') or ''), re.S)
+    if not m or m.group(1) not in core.IMAGE_TYPES:
+        return err(400, 'Nahrajte obrázek JPG, PNG, WEBP nebo GIF.')
+    blob = base64.b64decode(m.group(2))
+    if len(blob) > core.MAX_IMAGE:
+        return err(400, 'Fotka je větší než 8 MB.')
+    name = f'{int(time.time())}-{secrets.token_hex(4)}{core.IMAGE_TYPES[m.group(1)]}'
+    db.uploads.insert_one({'_id': name, 'type': m.group(1), 'data': blob})
+    return {'path': f'api/uploads/{name}'}
+
+
+@app.post('/api/{coll}')
+async def create(coll: str, request: Request):
+    if coll not in core.COLLECTIONS:
+        return err(404, 'Nenalezeno')
+    if not authorized(request):
+        return err(401, 'Přihlášení vypršelo, přihlaste se prosím znovu.')
+    data = await body(request)
+    if data is None:
+        return err(400, 'Neplatná data.')
+    with lock:
+        cat = load_catalog()
+        try:
+            item = CLEANERS[coll](data, cat)
+        except core.Invalid as e:
+            return err(400, str(e))
+        item = {'id': core.new_id(cat[coll], core.id_source(coll, item)), **item}
+        if coll == 'products':
+            cat[coll].insert(0, item)
+        else:
+            cat[coll].append(item)
+        save_catalog(cat)
+    return JSONResponse(item, status_code=201)
+
+
+@app.put('/api/{coll}/{item_id}')
+async def update(coll: str, item_id: str, request: Request):
+    if coll not in core.COLLECTIONS:
+        return err(404, 'Nenalezeno')
+    if not authorized(request):
+        return err(401, 'Přihlášení vypršelo, přihlaste se prosím znovu.')
+    data = await body(request)
+    if data is None:
+        return err(400, 'Neplatná data.')
+    with lock:
+        cat = load_catalog()
+        try:
+            item = CLEANERS[coll](data, cat)
+        except core.Invalid as e:
+            return err(400, str(e))
+        for i, old in enumerate(cat[coll]):
+            if old['id'] == item_id:
+                if coll == 'types' and old['cat'] != item['cat']:
+                    for p in cat['products']:
+                        if p['type'] == item_id:
+                            p['type'] = ''
+                cat[coll][i] = {'id': item_id, **item}
+                save_catalog(cat)
+                return cat[coll][i]
+    return err(404, 'Položka už neexistuje.')
+
+
+@app.delete('/api/{coll}/{item_id}')
+def delete(coll: str, item_id: str, request: Request):
+    if coll not in core.COLLECTIONS:
+        return err(404, 'Nenalezeno')
+    if not authorized(request):
+        return err(401, 'Přihlášení vypršelo, přihlaste se prosím znovu.')
+    with lock:
+        cat = load_catalog()
+        try:
+            core.delete_item(cat, coll, item_id)
+        except core.Invalid as e:
+            return err(409, str(e))
+        save_catalog(cat)
+    return {'ok': True}
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -96,21 +190,3 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-@app.on_event("startup")
-async def start_index_build():
-    app.state.index_task = asyncio.create_task(ensure_indexes())  # background: a big index build must not block boot
-
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    app.state.index_task.cancel()  # stop a build still running before its client closes
-    with suppress(asyncio.CancelledError):
-        await app.state.index_task
-    client.close()
