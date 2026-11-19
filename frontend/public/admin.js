@@ -158,7 +158,7 @@
           <div class="prow-main">
             <div class="prow-name">${e(cs(p.name))} ${cs(p.tag) ? `<span class="pill">${e(cs(p.tag))}</span>` : ''} ${p.oldPrice ? '<span class="pill pill-sale">AKCE</span>' : ''} ${p.name.vi ? '' : '<span class="pill pill-muted" title="Chybí vietnamský název">bez VI</span>'}</div>
             <div class="prow-meta">${c ? e(cs(c.name)) : '—'}${ty ? ' · ' + e(cs(ty.name)) : ''}${b ? ' · <b>' + e(b.name) + '</b>' : ''}</div>
-            <div class="prow-meta">${colors.map(x => `<span class="swatch" style="background:${x.hex}" title="${e(cs(x.name))}"></span>`).join('')} ${p.sizes.map(s => p.soldOut.includes(s) ? `<s>${e(s)}</s>` : e(s)).join(' · ')}</div>
+            <div class="prow-meta">${colors.map(x => `<span class="swatch${x.id === 'mix' ? ' mix' : ''}" style="background:${x.hex}" title="${e(cs(x.name))}"></span>`).join('')} ${p.sizes.map(s => p.soldOut.includes(s) ? `<s>${e(s)}</s>` : e(s)).join(' · ')}</div>
           </div>
           <div class="prow-price">${czk(p.price)}${p.oldPrice ? `<s>${czk(p.oldPrice)}</s>` : ''}</div>
           <div class="prow-actions">
@@ -256,7 +256,7 @@
       toolbar: () => '',
       items: () => CAT.colors,
       row: c => `<div class="prow prow-simple">
-          <span class="swatch swatch-xl" style="background:${c.hex}"></span>
+          <span class="swatch swatch-xl${c.id === 'mix' ? ' mix' : ''}" style="background:${c.hex}"></span>
           <div class="prow-main">
             <div class="prow-name">${e(cs(c.name))} <span class="muted">/ ${e(c.name.vi || '—')}</span></div>
             <div class="prow-meta">${c.hex} · ${pcs(usage.colors(c.id))}</div>
@@ -334,10 +334,11 @@
         <div class="form-field full">
           <label>Barvy <span class="hint">– vyberte jednu nebo víc (mix barev). První vybraná je hlavní a kreslí se podle ní ilustrace.</span></label>
           <div class="color-picks" data-colors>
-            ${CAT.colors.map(c => `<label class="color-pick"><input type="checkbox" name="colors" value="${c.id}" ${p.colors.includes(c.id) ? 'checked' : ''}><span class="swatch" style="background:${c.hex}"></span>${e(cs(c.name))}</label>`).join('')}
+            ${CAT.colors.map(c => `<label class="color-pick"><input type="checkbox" name="colors" value="${c.id}" ${p.colors.includes(c.id) ? 'checked' : ''}><span class="swatch${c.id === 'mix' ? ' mix' : ''}" style="background:${c.hex}"></span>${e(cs(c.name))}</label>`).join('')}
           </div>
           <button type="button" class="link" data-goto-colors>Přidat novou barvu…</button>
         </div>
+        ${fLoc('mixColors', 'Jaké barvy jsou v mixu', p.mixColors, { placeholder: 'např. černá, bílá, růžová', max: 300 })}
         <div class="form-field full">
           <label>Velikosti *</label>
           <input name="sizes" type="text" required value="${e(sizes.join(', '))}" placeholder="např. XS, S, M, L, XL">
@@ -386,11 +387,15 @@
     form.querySelector('[data-remove-photo]').hidden = !photo;
   }
 
+  function toggleMix() {
+    form.elements.mixColors__cs.closest('.form-field').style.display = pickedColors.includes('mix') ? '' : 'none';
+  }
+
   function productPayload() {
     return {
       name: locVal('name'), cat: val('cat'), type: val('type'), brand: val('brand'), art: val('art'),
       price: val('price'), oldPrice: val('oldPrice'), tag: locVal('tag'),
-      colors: pickedColors,
+      colors: pickedColors, mixColors: locVal('mixColors'),
       image: photo, sizes: parseSizes(),
       soldOut: [...form.querySelectorAll('[name="soldOut"]:checked')].map(i => i.value),
       sizeChart: val('sizeChart'), material: locVal('material'), desc: locVal('desc'),
@@ -425,6 +430,7 @@
     if (tab === 'products') {
       renderSoldOut(item ? item.soldOut : []);
       renderPreview();
+      toggleMix();
     }
     editor.showModal();
     const first = form.querySelector('input:not([type=file]):not([type=checkbox]), select');
@@ -444,6 +450,7 @@
     if (n === 'colors') {
       pickedColors = pickedColors.filter(id => id !== ev.target.value);
       if (ev.target.checked) pickedColors.push(ev.target.value);
+      toggleMix();
     }
     if (n === 'cat') {
       form.querySelector('[data-type-field]').innerHTML = typeSelect(val('cat'), '');

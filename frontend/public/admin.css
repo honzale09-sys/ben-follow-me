@@ -126,3 +126,5 @@ textarea { resize: vertical; font-family: inherit; }
 @media (max-width: 760px) {
   .loc-pair { grid-template-columns: 1fr; }
 }
+
+.swatch.mix { background: conic-gradient(#e8c4bc, #2b2a2e, #f7f3ee, #9bb5a0, #c8a2c8, #e8c4bc) !important; }

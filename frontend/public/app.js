@@ -61,7 +61,7 @@
     if (!cs.length) return '';
     const shown = cs.slice(0, max);
     return `<div class="card-meta" title="${e(cs.map(c => L(c.name)).join(', '))}">
-      <span class="swatches">${shown.map(c => `<span class="swatch" style="background:${c.hex}"></span>`).join('')}</span>
+      <span class="swatches">${shown.map(c => `<span class="swatch${c.id === 'mix' ? ' mix' : ''}" style="background:${c.hex}"></span>`).join('')}</span>
       ${cs.length === 1 ? e(L(cs[0].name)) : `${cs.length > max ? '+' + (cs.length - max) + ' · ' : ''}${e(cs.map(c => L(c.name)).slice(0, 2).join(', '))}${cs.length > 2 ? '…' : ''}`}
     </div>`;
   }
@@ -335,7 +335,8 @@
           ${L(p.desc) ? `<p class="desc">${e(L(p.desc))}</p>` : ''}
 
           ${cs.length ? `<div class="field-label"><span>${cs.length > 1 ? t('colors') : t('color')}</span></div>
-          <div class="color-list">${cs.map(col => `<span class="color-item"><span class="swatch swatch-lg" style="background:${col.hex}"></span>${e(L(col.name))}</span>`).join('')}</div>` : ''}
+          <div class="color-list">${cs.map(col => `<span class="color-item"><span class="swatch swatch-lg${col.id === 'mix' ? ' mix' : ''}" style="background:${col.hex}"></span>${e(L(col.name))}</span>`).join('')}</div>` : ''}
+          ${p.colors.includes('mix') && L(p.mixColors) ? `<p class="mix-note" data-testid="mix-colors-note"><b>${t('mixColors')}:</b> ${e(L(p.mixColors))}</p>` : ''}
 
           <div class="field-label"><span>${t('sizes')}</span>${chart ? `<a href="#/velikosti" class="link">${t('sizeTable')}</a>` : ''}</div>
           ${sizesHTML(p, 'sizes-lg')}

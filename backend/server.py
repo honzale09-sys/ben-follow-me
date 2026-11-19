@@ -29,6 +29,9 @@ def load_catalog():
         db.catalog.replace_one({'_id': 'main'}, doc, upsert=True)
     for key in core.COLLECTIONS:
         doc.setdefault(key, [])
+    if not any(c['id'] == 'mix' for c in doc['colors']):
+        doc['colors'].append({'id': 'mix', 'name': {'cs': 'Mix', 'vi': 'Mix'}, 'hex': '#c8a2c8'})
+        save_catalog(doc)
     return doc
 
 
@@ -42,6 +45,7 @@ def clean_product(d, cat):
     item = core.clean_product({**d, 'image': img[4:] if api_img else (img or None)}, cat)
     if api_img:
         item['image'] = img
+    item['mixColors'] = core.loc(d, 'mixColors', 300)
     return item
 
 

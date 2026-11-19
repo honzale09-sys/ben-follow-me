@@ -316,3 +316,6 @@ table.sizes-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 }
 
 .shipping-note { margin-top: 12px; font-size: 14px; font-weight: 600; text-align: center; }
+
+.swatch.mix { background: conic-gradient(#e8c4bc, #2b2a2e, #f7f3ee, #9bb5a0, #c8a2c8, #e8c4bc) !important; }
+.mix-note { margin-top: 10px; font-size: 14px; }
