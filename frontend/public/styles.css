@@ -314,3 +314,5 @@ table.sizes-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+.shipping-note { margin-top: 12px; font-size: 14px; font-weight: 600; text-align: center; }

@@ -113,7 +113,7 @@ function art(type, hex, label) {
   </svg>`;
 }
 
-const escapeHTML = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function escapeHTML(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
 // Fotka produktu, nebo ilustrace podle tvaru a (první) barvy
 function productVisual(p, hex, label) {

@@ -1,6 +1,6 @@
-/* global L, t, escapeHTML */
 (() => {
   'use strict';
+  const { L, t, escapeHTML } = window;
 
   const app = document.getElementById('app');
   const e = escapeHTML;
@@ -345,6 +345,7 @@
             <b>${t('interested')}</b>
             <p>${t('interestedText', { name: e(name) })}</p>
             <a href="${TEL}" class="btn btn-block btn-lg">${phoneIcon()} ${t('call')} ${CONTACT_PHONE}</a>
+            <p class="shipping-note" data-testid="shipping-note">${t('shippingNote')}</p>
           </div>
 
           <div class="details">
