@@ -153,7 +153,7 @@
         <h4>${t('sellerContact')}</h4>
         <a href="${TEL}">${t('phone')}: ${CONTACT_PHONE}</a>
         <a href="${MAIL}">${t('email')}: ${CONTACT_EMAIL}</a>
-        <span>${e(SHOP.address)}</span>
+        <span>${e(SHOP.address)}, ${t('hall')}</span>
         <span>${t('hoursValue')}</span>
         ${companyLines()}
         <span>${vatNote()}</span>
@@ -466,6 +466,7 @@
         <h2>${t('findUs')}</h2>
         <p class="shop-name">${e(SHOP.name)}</p>
         <p>${e(SHOP.address)}</p>
+        <p class="shop-hall" data-testid="shop-hall"><b>${t('hall')}</b></p>
         <p>${t('hoursValue')}</p>
         <a href="${SHOP.mapLink}" target="_blank" rel="noopener" class="btn btn-ghost">${t('openMaps')} ↗</a>
       </div>
