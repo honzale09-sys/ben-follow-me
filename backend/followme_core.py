@@ -206,6 +206,8 @@ def clean_product(d, cat):
         'sizes': sizes,
         'soldOut': [s for s in (d.get('soldOut') or []) if s in sizes],
         'sizeChart': text(d, 'sizeChart') if text(d, 'sizeChart') in SIZE_CHARTS else '',
+        'mixColors': loc(d, 'mixColors', 300),
+        'pack': text(d, 'pack', 20),
     }
 
 
