@@ -1,7 +1,15 @@
 (() => {
   'use strict';
-  const { escapeHTML, productVisual, SIZE_CHARTS, SIZE_PRESETS, ART_TYPES, art, VAT_RATE } = window;
-  const netOf = price => new Intl.NumberFormat('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.round(price / (1 + VAT_RATE / 100) * 100) / 100) + '\u00a0Kč';
+  const { escapeHTML, productVisual, SIZE_CHARTS, SIZE_PRESETS, ART_TYPES, art, VAT_RATE, PRICES_INCLUDE_VAT } = window;
+  const fmt2 = n => new Intl.NumberFormat('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.round(n * 100) / 100) + '\u00a0Kč';
+  // Druhá cena k zadané: při cenách bez DPH dopočítá cenu s DPH a naopak
+  const otherPrice = price => PRICES_INCLUDE_VAT
+    ? 'Bez DPH: ' + fmt2(price / (1 + VAT_RATE / 100))
+    : `S DPH ${VAT_RATE} %: ` + fmt2(price * (1 + VAT_RATE / 100));
+  const priceLabel = PRICES_INCLUDE_VAT ? 'Cena s DPH (Kč) *' : 'Cena bez DPH (Kč) *';
+  const priceHint = PRICES_INCLUDE_VAT ? `Zadejte cenu včetně DPH ${VAT_RATE} %` : 'Zadejte cenu bez DPH';
+  // Produkt není skladem = všechny velikosti nedostupné (backend nic dalšího ukládat nemusí)
+  const outOfStock = p => p.sizes.length > 0 && p.sizes.every(s => p.soldOut.includes(s));
 
   const $ = sel => document.querySelector(sel);
   const e = escapeHTML;
@@ -17,7 +25,9 @@
   let photo = null;          // cesta k fotce u otevřeného produktu
   let pickedColors = [];     // barvy v pořadí výběru – první je hlavní
   let pendingDelete = null;
-  const view = { q: '', cat: '', brand: '', size: '', avail: '' };
+  const view = { q: '', cat: '', brand: '', size: '', avail: '', stock: '' };
+  const openSizes = new Set();   // rozbalené velikosti v záložce Velikosti
+  let returnTab = null;          // kam se vrátit po úpravě produktu otevřené z jiné záložky
 
   // Všechny velikosti z produktů, seřazené od nejmenší
   function allSizes(list) {
@@ -137,6 +147,7 @@
     brands: id => CAT.products.filter(p => p.brand === id).length,
     colors: id => CAT.products.filter(p => p.colors.includes(id)).length,
   };
+  const avail = (n, ne) => `${n} ${ne}${n === 1 ? 'dostupný' : n >= 2 && n <= 4 ? 'dostupné' : 'dostupných'}`;
   const pcs = n => `${n} ${n === 1 ? 'produkt' : n >= 2 && n <= 4 ? 'produkty' : 'produktů'}`;
   const actions = id => `<div class="prow-actions">
       <button type="button" class="btn btn-ghost btn-sm" data-edit="${id}">Upravit</button>
@@ -151,12 +162,14 @@
           <input type="search" placeholder="Hledat podle názvu…" data-view="q" value="${e(view.q)}" aria-label="Hledat">
           <select data-view="cat" aria-label="Kategorie"><option value="">Všechny kategorie</option>${opts(catOpts(), view.cat)}<option value="__akce" ${view.cat === '__akce' ? 'selected' : ''}>Jen v akci</option></select>
           ${CAT.brands.length ? `<select data-view="brand" aria-label="Značka"><option value="">Všechny značky</option>${opts(CAT.brands.map(b => [b.id, b.name]), view.brand)}</select>` : ''}
+          <select data-view="stock" aria-label="Sklad"><option value="">Skladem i neskladem</option>${opts([['ano', 'Jen skladem'], ['ne', 'Jen není skladem']], view.stock)}</select>
           <select data-view="size" aria-label="Velikost"><option value="">Všechny velikosti</option>${opts(allSizes(CAT.products).map(s => [s, 'Velikost ' + s]), view.size)}</select>
           ${view.size ? `<select data-view="avail" aria-label="Dostupnost"><option value="">dostupné i nedostupné</option>${opts([['ano', 'jen dostupné'], ['ne', 'jen nedostupné']], view.avail)}</select>` : ''}
         </div>`,
       items: () => CAT.products.filter(p =>
         (!view.cat || (view.cat === '__akce' ? p.oldPrice : p.cat === view.cat)) &&
         (!view.brand || p.brand === view.brand) &&
+        (!view.stock || (view.stock === 'ne') === outOfStock(p)) &&
         (!view.size || (p.sizes.includes(view.size) &&
           (!view.avail || (view.avail === 'ano') !== p.soldOut.includes(view.size)))) &&
         (!view.q || (cs(p.name) + ' ' + (p.name.vi || '')).toLowerCase().includes(view.q.toLowerCase()))),
@@ -172,8 +185,9 @@
             <div class="prow-meta">${c ? e(cs(c.name)) : '—'}${ty ? ' · ' + e(cs(ty.name)) : ''}${b ? ' · <b>' + e(b.name) + '</b>' : ''}</div>
             <div class="prow-meta">${colors.map(x => `<span class="swatch${x.id === 'mix' ? ' mix' : ''}" style="background:${x.hex}" title="${e(cs(x.name))}"></span>`).join('')} ${p.sizes.map(s => { const x = p.soldOut.includes(s) ? `<s>${e(s)}</s>` : e(s); return s === view.size ? `<mark>${x}</mark>` : x; }).join(' · ')}</div>
           </div>
-          <div class="prow-price">${czk(p.price)}<small>${netOf(p.price)} bez DPH</small>${p.oldPrice ? `<s>${czk(p.oldPrice)}</s>` : ''}</div>
+          <div class="prow-price">${czk(p.price)}<small>${PRICES_INCLUDE_VAT ? 's DPH' : 'bez DPH'} · ${otherPrice(p.price).replace(/^S DPH \d+ %/, 's DPH').replace(/^Bez DPH/, 'bez DPH')}</small>${p.oldPrice ? `<s>${czk(p.oldPrice)}</s>` : ''}</div>
           <div class="prow-actions">
+            <button type="button" class="avail-toggle ${outOfStock(p) ? 'off' : 'on'}" data-stock="${p.id}" aria-pressed="${!outOfStock(p)}" title="Kliknutím přepnete">${outOfStock(p) ? 'Není skladem' : 'Skladem'}</button>
             <a href="./#/produkt/${p.id}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">Na webu ↗</a>
             <button type="button" class="btn btn-ghost btn-sm" data-edit="${p.id}">Upravit</button>
             <button type="button" class="btn btn-ghost btn-sm btn-danger-ghost" data-delete="${p.id}">Smazat</button>
@@ -285,6 +299,51 @@
       payload: () => ({ name: locVal('name'), hex: val('hex') }),
       deleteText: c => `Barva <b>„${e(cs(c.name))}“</b> se smaže.${usage.colors(c.id) ? ` U ${pcs(usage.colors(c.id))} se odebere, produkty zůstanou.` : ''}`,
     },
+
+    // Přehled produktů podle velikostí – velikosti se berou z produktů, dostupnost jde přepnout rovnou tady
+    sizes: {
+      title: 'Velikosti', add: '', single: 'velikost',
+      note: () => 'Produkty podle velikostí. Rozklikněte velikost a u každého produktu přepněte, jestli je v ní dostupný. Velikosti se přidávají v úpravě produktu.',
+      toolbar: () => `<div class="toolbar-filters">
+          <select data-view="cat" aria-label="Kategorie"><option value="">Všechny kategorie</option>${opts(catOpts(), view.cat)}</select>
+          <select data-view="avail" aria-label="Dostupnost"><option value="">Všechny velikosti</option>${opts([['ne', 'Jen velikosti s něčím nedostupným']], view.avail)}</select>
+          <button type="button" class="btn btn-ghost btn-sm" data-open-all>Rozbalit vše</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-close-all>Sbalit vše</button>
+        </div>`,
+      items: () => {
+        const prods = CAT.products.filter(p => !view.cat || p.cat === view.cat);
+        return allSizes(prods)
+          .map(size => ({ id: size, size, prods: prods.filter(p => p.sizes.includes(size)) }))
+          .filter(g => view.avail !== 'ne' || g.prods.some(p => p.soldOut.includes(g.size)));
+      },
+      row: g => {
+        const out = g.prods.filter(p => p.soldOut.includes(g.size)).length;
+        return `<details class="size-group" data-size-group="${e(g.size)}" ${openSizes.has(g.size) ? 'open' : ''}>
+          <summary>
+            <span class="size-badge">${e(g.size)}</span>
+            <span class="size-sum"><b>${pcs(g.prods.length)}</b> · ${avail(g.prods.length - out, '')}${out ? ` · <span class="out-count">${avail(out, 'ne')}</span>` : ''}</span>
+          </summary>
+          <div class="size-products">
+            ${g.prods.map(p => {
+              const isOut = p.soldOut.includes(g.size);
+              const c = byIdIn('categories', p.cat);
+              const col = p.colors.map(id => byIdIn('colors', id)).filter(Boolean)[0];
+              return `<div class="size-prod ${isOut ? 'is-out' : ''}">
+                <div class="prow-media" style="--bg:${c ? c.bg : '#eee'}">${productVisual(p, (col || {}).hex || (c || {}).artColor, cs(p.name))}</div>
+                <div class="prow-main">
+                  <div class="prow-name">${e(cs(p.name))}</div>
+                  <div class="prow-meta">${c ? e(cs(c.name)) : ''} · ${czk(p.price)} · velikosti ${p.sizes.map(s => p.soldOut.includes(s) ? `<s>${e(s)}</s>` : e(s)).join(', ')}</div>
+                </div>
+                <div class="size-actions">
+                  <button type="button" class="avail-toggle ${isOut ? 'off' : 'on'}" data-toggle-avail="${p.id}" data-size="${e(g.size)}" aria-pressed="${!isOut}" title="Kliknutím přepnete">${isOut ? 'Nedostupná' : 'Dostupná'}</button>
+                  <button type="button" class="btn btn-ghost btn-sm" data-edit-product="${p.id}">Upravit</button>
+                </div>
+              </div>`;
+            }).join('')}
+          </div>
+        </details>`;
+      },
+    },
   };
 
   /* ---------- Výpis ---------- */
@@ -295,6 +354,7 @@
     $('[data-tab-title]').textContent = T.title;
     $('[data-tab-note]').textContent = T.note();
     $('[data-new]').textContent = T.add;
+    $('[data-new]').hidden = !T.add;
     $('[data-toolbar]').innerHTML = T.toolbar();
     $('[data-toolbar]').hidden = !T.toolbar();
     renderList();
@@ -313,7 +373,8 @@
     const b = ev.target.closest('[data-tab]');
     if (!b) return;
     tab = b.dataset.tab;
-    Object.assign(view, { q: '', cat: '', brand: '', size: '', avail: '' });
+    Object.assign(view, { q: '', cat: '', brand: '', size: '', avail: '', stock: '' });
+    returnTab = null;
     renderTab();
   });
 
@@ -349,7 +410,7 @@
         <div class="form-field" data-type-field>${typeSelect(p.cat, p.type)}</div>
         ${fSelect('brand', 'Značka', CAT.brands.map(b => [b.id, b.name]), p.brand, { empty: '— bez značky —' })}
         ${fSelect('art', 'Tvar ilustrace', Object.entries(ART_TYPES), p.art)}
-        ${field('Cena s DPH (Kč) *', `<input name="price" type="number" value="${e(p.price)}" maxlength="7" required><div class="hint" data-net>${p.price !== '' ? 'Bez DPH: ' + netOf(p.price) : `Zadejte cenu včetně DPH ${VAT_RATE} %`}</div>`)}
+        ${field(priceLabel, `<input name="price" type="number" value="${e(p.price)}" maxlength="7" required><div class="hint" data-net>${p.price !== '' ? otherPrice(p.price) : priceHint}</div>`)}
         ${fText('oldPrice', 'Původní cena (Kč) – vyplňte pro AKCI', p.oldPrice || '', { type: 'number', max: 7, placeholder: 'jen u slevy' })}
         ${fText('pack', 'Počet ks v balení', p.pack || '', { max: 20, placeholder: 'např. 3' })}
         ${fLoc('tag', 'Štítek', p.tag, { placeholder: 'např. Novinka', max: 40 })}
@@ -371,7 +432,8 @@
           </div>
         </div>
         <div class="form-field full">
-          <label>Momentálně nedostupné velikosti</label>
+          <label>Momentálně nedostupné velikosti
+            <span class="quick-stock"><button type="button" class="link" data-all-out>není skladem (vše)</button> · <button type="button" class="link" data-all-in>vše skladem</button></span></label>
           <div class="checks" data-soldout></div>
         </div>
         ${fSelect('sizeChart', 'Tabulka velikostí', Object.entries(SIZE_CHARTS), p.sizeChart, { empty: '— podle kategorie —', cls: 'full' })}
@@ -460,6 +522,13 @@
   }
 
   $('[data-new]').addEventListener('click', () => openEditor(null));
+  // Po úpravě produktu otevřené ze záložky Velikosti se vrátíme zpět
+  editor.addEventListener('close', () => {
+    if (!returnTab) return;
+    tab = returnTab;
+    returnTab = null;
+    renderTab();
+  });
   editor.addEventListener('click', ev => {
     if (ev.target.closest('[data-close]') || ev.target === editor) editor.close();
   });
@@ -469,7 +538,7 @@
     if (ev.target.type === 'color') ev.target.nextElementSibling.textContent = ev.target.value;
     if (tab !== 'products') return;
     if (n === 'sizes') renderSoldOut();
-    if (n === 'price') form.querySelector('[data-net]').textContent = val('price') ? 'Bez DPH: ' + netOf(+val('price')) : `Zadejte cenu včetně DPH ${VAT_RATE} %`;
+    if (n === 'price') form.querySelector('[data-net]').textContent = val('price') ? otherPrice(+val('price')) : priceHint;
     if (n === 'colors') {
       pickedColors = pickedColors.filter(id => id !== ev.target.value);
       if (ev.target.checked) pickedColors.push(ev.target.value);
@@ -485,6 +554,11 @@
   });
 
   form.addEventListener('click', ev => {
+    const allOut = ev.target.closest('[data-all-out]'), allIn = ev.target.closest('[data-all-in]');
+    if (allOut || allIn) {
+      form.querySelectorAll('[name="soldOut"]').forEach(i => { i.checked = !!allOut; });
+      return;
+    }
     const b = ev.target.closest('[data-preset]');
     if (b) {
       form.elements.sizes.value = b.dataset.preset === 'uni' ? 'Univerzální' : SIZE_PRESETS[b.dataset.preset].join(', ');
@@ -546,7 +620,57 @@
 
   /* ---------- Mazání ---------- */
 
-  $('[data-list]').addEventListener('click', ev => {
+  // Rozbalení velikostí si pamatujeme, aby po přepnutí dostupnosti zůstaly otevřené
+  $('[data-list]').addEventListener('toggle', ev => {
+    const g = ev.target.closest && ev.target.closest('[data-size-group]');
+    if (!g) return;
+    if (g.open) openSizes.add(g.dataset.sizeGroup); else openSizes.delete(g.dataset.sizeGroup);
+  }, true);
+
+  $('[data-toolbar]').addEventListener('click', ev => {
+    if (ev.target.closest('[data-open-all]')) { TABS.sizes.items().forEach(g => openSizes.add(g.size)); renderList(); }
+    if (ev.target.closest('[data-close-all]')) { openSizes.clear(); renderList(); }
+  });
+
+  $('[data-list]').addEventListener('click', async ev => {
+    // Skladem / Není skladem – nedostupné jsou buď všechny velikosti, nebo žádná
+    const st = ev.target.closest('[data-stock]');
+    if (st) {
+      const p = byIdIn('products', st.dataset.stock);
+      const soldOut = outOfStock(p) ? [] : [...p.sizes];
+      st.disabled = true;
+      try {
+        await api('PUT', '/api/products/' + p.id, { ...p, soldOut });
+        toast(`${cs(p.name)}: ${soldOut.length ? 'není skladem' : 'skladem'}`);
+        await reload();
+      } catch (err) {
+        st.disabled = false;
+        toast(err.message);
+      }
+      return;
+    }
+    const tg = ev.target.closest('[data-toggle-avail]');
+    if (tg) {
+      const p = byIdIn('products', tg.dataset.toggleAvail);
+      const size = tg.dataset.size;
+      const soldOut = p.soldOut.includes(size) ? p.soldOut.filter(s => s !== size) : [...p.soldOut, size];
+      tg.disabled = true;
+      try {
+        await api('PUT', '/api/products/' + p.id, { ...p, soldOut });
+        toast(`${cs(p.name)} · ${size}: ${soldOut.includes(size) ? 'nedostupná' : 'dostupná'}`);
+        await reload();
+      } catch (err) {
+        tg.disabled = false;
+        toast(err.message);
+      }
+      return;
+    }
+    const ep = ev.target.closest('[data-edit-product]');
+    if (ep) {
+      returnTab = tab;
+      tab = 'products';
+      return openEditor(byIdIn('products', ep.dataset.editProduct));
+    }
     const ed = ev.target.closest('[data-edit]');
     if (ed) return openEditor(byIdIn(tab, ed.dataset.edit));
     const del = ev.target.closest('[data-delete]');

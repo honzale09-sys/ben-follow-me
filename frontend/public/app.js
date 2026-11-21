@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const { L, t, escapeHTML, productVisual, SIZE_PRESETS, art, sizeTable, setLang, CONTACT_PHONE, CONTACT_EMAIL, VAT_RATE } = window;
+  const { L, t, escapeHTML, productVisual, SIZE_PRESETS, art, sizeTable, setLang, CONTACT_PHONE, CONTACT_EMAIL, VAT_RATE, PRICES_INCLUDE_VAT, SHOP, COMPANY } = window;
 
   const app = document.getElementById('app');
   const e = escapeHTML;
@@ -8,6 +8,10 @@
   const czk = n => new Intl.NumberFormat(window.LANG === 'vi' ? 'vi-VN' : 'cs-CZ').format(n) + ' Kč';
   const czk2 = n => new Intl.NumberFormat(window.LANG === 'vi' ? 'vi-VN' : 'cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) + '\u00a0Kč';
   const net = price => Math.round(price / (1 + VAT_RATE / 100) * 100) / 100;
+  const gross = price => Math.round(price * (1 + VAT_RATE / 100) * 100) / 100;
+  // Produkt není skladem, když jsou nedostupné všechny jeho velikosti (přepíná se v administraci)
+  const outOfStock = p => p.sizes.length > 0 && p.sizes.every(s => p.soldOut.includes(s));
+  const vatNote = () => t(PRICES_INCLUDE_VAT ? 'vatNote' : 'vatNoteExcl', { rate: VAT_RATE });
   const MAIL = 'mailto:' + CONTACT_EMAIL;
 
   let CAT = { categories: [], types: [], brands: [], colors: [], products: [] };
@@ -45,11 +49,14 @@
   const discount = p => p.oldPrice ? Math.round((1 - p.price / p.oldPrice) * 100) : 0;
   const count = n => `${n} ${t('products')(n)}`;
 
-  // Cena s DPH (tak se zadává v administraci) a pod ní cena bez DPH
+  // Nahoře cena tak, jak je zadaná v administraci (teď bez DPH), pod ní dopočtená druhá cena
   function priceHTML(p) {
+    const [mainLabel, otherLabel, other] = PRICES_INCLUDE_VAT
+      ? [t('withVat'), t('withoutVat'), net(p.price)]
+      : [t('withoutVat'), t('withVat'), gross(p.price)];
     return `<div class="price-wrap">
-      <div class="price ${p.oldPrice ? 'sale' : ''}">${czk(p.price)} <span class="vat">${t('withVat')}</span>${p.oldPrice ? ` <s>${czk(p.oldPrice)}</s>` : ''}</div>
-      <div class="price-net">${czk2(net(p.price))} ${t('withoutVat')}</div>
+      <div class="price ${p.oldPrice ? 'sale' : ''}">${czk(p.price)} <span class="vat">${mainLabel}</span>${p.oldPrice ? ` <s>${czk(p.oldPrice)}</s>` : ''}</div>
+      <div class="price-net">${czk2(other)} ${otherLabel}</div>
     </div>`;
   }
 
@@ -76,10 +83,11 @@
     const tag = L(p.tag);
     const d = discount(p);
     const brand = brandById[p.brand];
-    return `<article class="card">
+    const out = outOfStock(p);
+    return `<article class="card ${out ? 'is-out' : ''}">
       <a href="#/produkt/${p.id}" class="card-media ${p.image ? 'has-photo' : ''}" data-zoom="1.8" style="--bg:${bgOf(p)}">
         ${visual(p)}
-        ${tag ? `<span class="badge">${e(tag)}</span>` : ''}
+        ${out ? `<span class="badge badge-out">${t('outOfStock')}</span>` : tag ? `<span class="badge">${e(tag)}</span>` : ''}
         ${d ? `<span class="badge sale">−${d} %</span>` : ''}
       </a>
       <div class="card-body">
@@ -145,7 +153,10 @@
         <h4>${t('sellerContact')}</h4>
         <a href="${TEL}">${t('phone')}: ${CONTACT_PHONE}</a>
         <a href="${MAIL}">${t('email')}: ${CONTACT_EMAIL}</a>
-        <span>${t('vatNote', { rate: VAT_RATE })}</span>
+        <span>${e(SHOP.address)}</span>
+        <span>${t('hoursValue')}</span>
+        ${companyLines()}
+        <span>${vatNote()}</span>
       </div>`;
   }
 
@@ -257,6 +268,8 @@
       const rank = p => /bestseller/i.test(p.tag.cs || '') ? 0 : (p.tag.cs ? 1 : 2);
       items = [...items].sort((a, b) => rank(a) - rank(b));
     }
+    // Zboží, které není skladem, vždy až na konec
+    items = [...items].sort((a, b) => outOfStock(a) - outOfStock(b));
 
     const brands = CAT.brands.filter(b => all.some(p => p.brand === b.id));
     const colors = CAT.colors.filter(c => all.some(p => p.colors.includes(c.id)));
@@ -362,7 +375,11 @@
 
           <div class="field-label"><span>${t('sizes')}</span>${chart ? `<a href="#/velikosti" class="link">${t('sizeTable')}</a>` : ''}</div>
           ${sizesHTML(p, 'sizes-lg')}
-          ${p.soldOut.length ? `<p class="size-note">${t('soldOutNote')}</p>` : ''}
+          ${outOfStock(p) ? '' : p.soldOut.length ? `<p class="size-note">${t('soldOutNote')}</p>` : ''}
+
+          ${outOfStock(p)
+            ? `<div class="stock-box out"><b>${t('outOfStock')}</b><p>${t('outOfStockNote')}</p></div>`
+            : `<p class="stock-line">● ${t('inStock')}</p>`}
 
           <div class="contact-box">
             <b>${t('interested')}</b>
@@ -399,6 +416,24 @@
     </div>`;
   }
 
+  // Provozovatel a IČO – ukáže se jen to, co je vyplněné v data.js
+  function companyLines() {
+    return [
+      COMPANY.name && `<span>${t('operator')}: ${e(COMPANY.name)}</span>`,
+      COMPANY.ico && `<span>${t('ico')}: ${e(COMPANY.ico)}</span>`,
+      COMPANY.dic && `<span>${t('dic')}: ${e(COMPANY.dic)}</span>`,
+      COMPANY.seat && `<span>${t('seat')}: ${e(COMPANY.seat)}</span>`,
+      COMPANY.tradeRegister && `<span>${t('tradeRegister')}</span>`,
+    ].filter(Boolean).join('');
+  }
+
+  function clockIcon() {
+    return `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+  }
+  function pinIcon() {
+    return `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 21s-6.5-6.2-6.5-11.2a6.5 6.5 0 0 1 13 0C18.5 14.8 12 21 12 21Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="9.8" r="2.3" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>`;
+  }
+
   function pageContact() {
     return `<div class="wrap page-head">
       <div class="breadcrumbs"><a href="#/">${t('home')}</a> / ${t('contact')}</div>
@@ -415,14 +450,35 @@
       <div class="contact-card">
         <span class="contact-icon">${mailIcon()}</span>
         <h3>${t('email')}</h3>
-        <p class="contact-value">${CONTACT_EMAIL}</p>
+        <p class="contact-value contact-value-sm">${CONTACT_EMAIL}</p>
         <a href="${MAIL}" class="btn">${t('writeEmail')}</a>
       </div>
+      <div class="contact-card">
+        <span class="contact-icon">${clockIcon()}</span>
+        <h3>${t('hours')}</h3>
+        <p class="contact-value contact-value-sm">${t('hoursValue')}</p>
+      </div>
     </div>
+
+    <section class="wrap find-us">
+      <div class="find-us-text">
+        <span class="contact-icon">${pinIcon()}</span>
+        <h2>${t('findUs')}</h2>
+        <p class="shop-name">${e(SHOP.name)}</p>
+        <p>${e(SHOP.address)}</p>
+        <p>${t('hoursValue')}</p>
+        <a href="${SHOP.mapLink}" target="_blank" rel="noopener" class="btn btn-ghost">${t('openMaps')} ↗</a>
+      </div>
+      <div class="map-box">
+        <iframe src="${SHOP.mapEmbed}" title="${e(SHOP.name)} – ${t('map')}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
+      </div>
+    </section>
+
     <div class="wrap contact-info">
       <p>${t('contactText')}</p>
       <p>${t('shippingNote')}</p>
-      <p class="muted">${t('vatNote', { rate: VAT_RATE })}</p>
+      ${COMPANY.name || COMPANY.ico ? `<div class="company-box">${companyLines()}</div>` : ''}
+      <p class="muted">${vatNote()}</p>
     </div>`;
   }
 

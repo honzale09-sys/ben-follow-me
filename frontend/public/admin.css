@@ -134,3 +134,33 @@ textarea { resize: vertical; font-family: inherit; }
 
 .prow-price small { display: block; font-weight: 500; font-size: 11.5px; color: var(--muted); }
 [data-net] { margin-top: 5px; }
+
+/* Záložka Velikosti */
+.size-group { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); }
+.size-group summary { display: flex; align-items: center; gap: 14px; padding: 12px 16px; cursor: pointer; list-style: none; }
+.size-group summary::-webkit-details-marker { display: none; }
+.size-group summary::after { content: "+"; margin-left: auto; font-size: 20px; color: var(--muted); }
+.size-group[open] summary::after { content: "–"; }
+.size-badge { min-width: 64px; text-align: center; padding: 6px 10px; border-radius: 10px; background: var(--ink); color: #fff; font-weight: 700; font-size: 15px; }
+.size-sum { font-size: 14px; color: var(--ink-soft); }
+.out-count { color: var(--danger); font-weight: 600; }
+.size-products { display: grid; gap: 8px; padding: 4px 14px 14px; }
+.size-prod { display: grid; grid-template-columns: 56px 1fr auto; gap: 14px; align-items: center; padding: 8px; border-radius: 12px; border: 1px solid var(--line); }
+.size-actions { display: flex; gap: 8px; align-items: center; }
+.size-prod .prow-media { width: 56px; height: 56px; }
+.size-prod.is-out { background: #faf5f3; }
+.avail-toggle { border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; font-size: 13px; font-weight: 700; cursor: pointer; min-width: 118px; }
+.avail-toggle.on { background: #e6f1e8; border-color: #b9d8bf; color: #2f6b3e; }
+.avail-toggle.on::before { content: "✓ "; }
+.avail-toggle.off { background: #f6e0de; border-color: #e8c1bd; color: var(--danger); }
+.avail-toggle.off::before { content: "✕ "; }
+.avail-toggle:disabled { opacity: .5; cursor: wait; }
+@media (max-width: 760px) {
+  .size-prod { grid-template-columns: 48px 1fr; }
+  .size-prod .prow-media { width: 48px; height: 48px; }
+  .size-actions { grid-column: 1 / -1; justify-content: flex-end; }
+}
+
+.prow-actions .avail-toggle { min-width: 112px; padding: 7px 12px; }
+.quick-stock { font-weight: 500; margin-left: 8px; }
+.quick-stock .link { font-size: 12.5px; }
