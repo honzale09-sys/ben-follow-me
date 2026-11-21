@@ -346,7 +346,7 @@
     return `
     <div class="wrap">
       <div class="pdp">
-        <div class="pdp-media ${p.image ? 'has-photo' : ''}" data-zoom="2.5" style="--bg:${c.bg}">${visual(p)}<span class="zoom-hint">🔍 ${HOVER ? t('zoomHover') : t('zoomTap')}</span></div>
+        <div class="pdp-media ${p.image ? 'has-photo' : ''}" data-zoom="2.5" style="--bg:${c.bg}">${visual(p)}<span class="zoom-hint">🔍 ${HOVER ? t('zoomHover') : t('zoomTap')}</span>${p.image ? `<button type="button" class="full-photo-btn" data-full-photo="${e(p.image)}" data-testid="show-full-photo-btn">${t('fullPhoto')}</button>` : ''}</div>
         <div class="pdp-info">
           <div class="breadcrumbs"><a href="#/">${t('home')}</a> / <a href="#/kategorie/${p.cat}">${e(L(c.name))}</a>${ty ? ` / <a href="#/kategorie/${p.cat}" data-goto-type="${ty.id}">${e(L(ty.name))}</a>` : ''}</div>
           ${L(p.tag) ? `<div class="eyebrow" style="margin:0">${e(L(p.tag))}</div>` : ''}
@@ -516,6 +516,20 @@
     if (box) zoomAt(box, ev.clientX, ev.clientY);
   });
   document.addEventListener('pointerout', ev => { if (ev.pointerType === 'mouse' && !ev.relatedTarget) unzoom(zoomed); });
+
+  // Celá fotka v okně přes celou obrazovku
+  const lightbox = document.createElement('dialog');
+  lightbox.className = 'lightbox';
+  lightbox.dataset.testid = 'full-photo-dialog';
+  document.body.appendChild(lightbox);
+  lightbox.addEventListener('click', () => lightbox.close());
+  document.addEventListener('click', ev => {
+    const b = ev.target.closest('[data-full-photo]');
+    if (!b) return;
+    ev.stopPropagation();
+    lightbox.innerHTML = `<img src="${e(b.dataset.fullPhoto)}" alt=""><button type="button" class="lightbox-close" data-testid="full-photo-close-btn" aria-label="${t('close')}">×</button>`;
+    lightbox.showModal();
+  }, true);
 
   // Dotyk: v detailu produktu klepnutím zvětšit / zmenšit
   document.addEventListener('click', ev => {
