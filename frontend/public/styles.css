@@ -145,8 +145,7 @@ main { min-height: 60vh; outline: none; }
 .card { display: flex; flex-direction: column; background: var(--paper); border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); transition: box-shadow .3s, transform .3s; }
 .card:hover { box-shadow: var(--shadow); transform: translateY(-2px); }
 .card-media { position: relative; aspect-ratio: 1 / 1; background: var(--bg); display: grid; place-items: center; }
-.card-media svg { width: 88%; height: 88%; transition: transform .4s ease; }
-.card:hover .card-media svg { transform: scale(1.05); }
+.card-media svg { width: 88%; height: 88%; }
 .badge { position: absolute; top: 12px; left: 12px; background: var(--paper); font-size: 11.5px; font-weight: 600; letter-spacing: .03em; padding: 4px 10px; border-radius: 999px; }
 .badge.sale { background: var(--sale); color: #fff; left: auto; right: 12px; }
 .card-body { padding: 16px 16px 18px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
@@ -164,9 +163,18 @@ main { min-height: 60vh; outline: none; }
 .price s { color: var(--muted); font-weight: 500; font-size: 13px; }
 .price.sale { color: var(--sale); }
 
-.card-media.has-photo, .pdp-media.has-photo { overflow: hidden; }
-.card-media img, .pdp-media img { width: 100%; height: 100%; object-fit: cover; transition: transform .4s ease; }
-.card:hover .card-media img { transform: scale(1.04); }
+/* Fotka se vždy ukáže celá (i na výšku nebo ve velkém rozlišení), zbytek vyplní pozadí */
+.card-media img, .pdp-media img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.card-media.has-photo { background: #fff; }
+.pdp-media.has-photo { background: #fff; border: 1px solid var(--line); }
+
+/* Zoom při najetí myší – fotka se zvětší a posouvá se za kurzorem */
+[data-zoom] { overflow: hidden; cursor: zoom-in; }
+[data-zoom] > img, [data-zoom] > svg { transition: transform .2s ease-out; will-change: transform; }
+[data-zoom].zooming { cursor: zoom-out; }
+.zoom-hint { position: absolute; right: 14px; bottom: 14px; background: rgba(255,255,255,.9); border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 600; color: var(--ink-soft); pointer-events: none; transition: opacity .2s; }
+.pdp-media .zoom-hint { display: inline-flex; align-items: center; gap: 6px; }
+[data-zoom].zooming .zoom-hint { opacity: 0; }
 .card-more { margin-top: auto; padding-top: 4px; font-size: 13px; font-weight: 600; color: var(--ink-soft); }
 .card-more:hover { color: var(--ink); }
 
@@ -214,7 +222,7 @@ select:focus, input:focus { outline: 2px solid var(--powder); border-color: var(
 
 /* Product detail */
 .pdp { display: grid; grid-template-columns: 1.1fr 1fr; gap: 56px; padding: 40px 0 64px; align-items: start; }
-.pdp-media { background: var(--bg); border-radius: calc(var(--radius) * 1.4); aspect-ratio: 1 / 1; display: grid; place-items: center; position: sticky; top: 96px; }
+.pdp-media { background: var(--bg); border-radius: calc(var(--radius) * 1.4); aspect-ratio: 1 / 1; display: grid; place-items: center; position: sticky; top: 96px; overflow: hidden; }
 .pdp-media svg { width: 70%; height: 70%; }
 .swatch-lg { width: 28px; height: 28px; box-shadow: 0 0 0 3px var(--cream), 0 0 0 4px var(--ink); }
 .contact-box { margin-top: 28px; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
@@ -320,3 +328,23 @@ table.sizes-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .swatch.mix { background: conic-gradient(#e8c4bc, #2b2a2e, #f7f3ee, #9bb5a0, #c8a2c8, #e8c4bc) !important; }
 .mix-note { margin-top: 10px; font-size: 14px; }
 .pack-note { margin-top: 6px; font-size: 15px; }
+
+/* Ceny s DPH a bez DPH */
+.price-wrap { display: grid; gap: 1px; }
+.price .vat { font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: .02em; }
+.price-net { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pdp-info .price-net { font-size: 14px; }
+
+/* Kontakty */
+.contact-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.btn-ghost-light { background: transparent; color: var(--ink); border-color: var(--ink); }
+.btn-ghost-light:hover { background: var(--ink); color: #fff; }
+.or-mail { text-align: center; font-size: 13.5px; margin: 12px 0 0 !important; overflow-wrap: anywhere; }
+.contact-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
+.contact-card { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px; display: grid; justify-items: start; gap: 8px; min-width: 0; }
+.contact-icon { width: 44px; height: 44px; border-radius: 50%; background: var(--powder-soft); display: grid; place-items: center; color: var(--rose); }
+.contact-value { font-family: var(--serif); font-size: 1.7rem; font-weight: 600; overflow-wrap: anywhere; }
+.contact-card .btn { margin-top: 6px; }
+.contact-info { display: grid; gap: 8px; padding: 28px 0 64px; color: var(--ink-soft); }
+.price { flex-wrap: wrap; column-gap: 6px; row-gap: 0; }
+.price .vat, .price s { white-space: nowrap; }

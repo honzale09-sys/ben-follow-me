@@ -2,6 +2,10 @@
 // se spravují v administraci (ukládají se do data/catalog.json).
 
 var CONTACT_PHONE = '773 378 988';
+var CONTACT_EMAIL = 'followmeben86@gmail.com';
+
+// Sazba DPH v %. Ceny v administraci se zadávají včetně DPH, cena bez DPH se dopočítá.
+var VAT_RATE = 21;
 
 // Rychlé vyplnění velikostí v administraci
 var SIZE_PRESETS = {

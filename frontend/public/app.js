@@ -1,14 +1,18 @@
 (() => {
   'use strict';
-  const { L, t, escapeHTML, productVisual, SIZE_PRESETS, art, sizeTable, setLang, CONTACT_PHONE } = window;
+  const { L, t, escapeHTML, productVisual, SIZE_PRESETS, art, sizeTable, setLang, CONTACT_PHONE, CONTACT_EMAIL, VAT_RATE } = window;
 
   const app = document.getElementById('app');
   const e = escapeHTML;
   const TEL = 'tel:+420' + CONTACT_PHONE.replace(/\s/g, '');
   const czk = n => new Intl.NumberFormat(window.LANG === 'vi' ? 'vi-VN' : 'cs-CZ').format(n) + ' Kč';
+  const czk2 = n => new Intl.NumberFormat(window.LANG === 'vi' ? 'vi-VN' : 'cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) + '\u00a0Kč';
+  const net = price => Math.round(price / (1 + VAT_RATE / 100) * 100) / 100;
+  const MAIL = 'mailto:' + CONTACT_EMAIL;
 
   let CAT = { categories: [], types: [], brands: [], colors: [], products: [] };
   let byId = {}, catById = {}, typeById = {}, brandById = {}, colorById = {};
+  const HOVER = window.matchMedia('(hover: hover)').matches;
   const filters = { group: '', brand: '', color: '', size: '', sort: 'doporucene' };
   let filterScope = null;
 
@@ -41,10 +45,12 @@
   const discount = p => p.oldPrice ? Math.round((1 - p.price / p.oldPrice) * 100) : 0;
   const count = n => `${n} ${t('products')(n)}`;
 
+  // Cena s DPH (tak se zadává v administraci) a pod ní cena bez DPH
   function priceHTML(p) {
-    return p.oldPrice
-      ? `<div class="price sale">${czk(p.price)} <s>${czk(p.oldPrice)}</s></div>`
-      : `<div class="price">${czk(p.price)}</div>`;
+    return `<div class="price-wrap">
+      <div class="price ${p.oldPrice ? 'sale' : ''}">${czk(p.price)} <span class="vat">${t('withVat')}</span>${p.oldPrice ? ` <s>${czk(p.oldPrice)}</s>` : ''}</div>
+      <div class="price-net">${czk2(net(p.price))} ${t('withoutVat')}</div>
+    </div>`;
   }
 
   // Velikosti jsou jen informace – nejde je vybírat
@@ -71,7 +77,7 @@
     const d = discount(p);
     const brand = brandById[p.brand];
     return `<article class="card">
-      <a href="#/produkt/${p.id}" class="card-media ${p.image ? 'has-photo' : ''}" style="--bg:${bgOf(p)}">
+      <a href="#/produkt/${p.id}" class="card-media ${p.image ? 'has-photo' : ''}" data-zoom="1.8" style="--bg:${bgOf(p)}">
         ${visual(p)}
         ${tag ? `<span class="badge">${e(tag)}</span>` : ''}
         ${d ? `<span class="badge sale">−${d} %</span>` : ''}
@@ -96,9 +102,16 @@
     return `<section class="section">
       <div class="wrap contact-band">
         <div><h2>${t('contactTitle')}</h2><p>${t('contactText')}</p></div>
-        <a href="${TEL}" class="btn btn-light btn-lg">${phoneIcon()} ${CONTACT_PHONE}</a>
+        <div class="contact-actions">
+          <a href="${TEL}" class="btn btn-light btn-lg">${phoneIcon()} ${CONTACT_PHONE}</a>
+          <a href="${MAIL}" class="btn btn-ghost-light btn-lg">${mailIcon()} ${CONTACT_EMAIL}</a>
+        </div>
       </div>
     </section>`;
+  }
+
+  function mailIcon() {
+    return `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 6h16v12H4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="m4 7 8 6 8-6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>`;
   }
 
   const phoneLink = `<a href="${TEL}" class="link-inline">${CONTACT_PHONE}</a>`;
@@ -109,7 +122,8 @@
     document.documentElement.lang = window.LANG;
     document.querySelector('[data-nav-links]').innerHTML =
       CAT.categories.map(c => `<a href="#/kategorie/${c.id}" data-nav="${c.id}">${e(L(c.name))}</a>`).join('') +
-      `<a href="#/akce" data-nav="akce" class="nav-sale">${t('sale')}</a>`;
+      `<a href="#/akce" data-nav="akce" class="nav-sale">${t('sale')}</a>` +
+      `<a href="#/kontakt" data-nav="kontakt">${t('contact')}</a>`;
     document.querySelectorAll('[data-lang]').forEach(b => b.setAttribute('aria-pressed', b.dataset.lang === window.LANG));
     document.querySelectorAll('[data-phone-label]').forEach(el => { el.setAttribute('aria-label', t('callSeller')); });
     document.querySelector('[data-footer]').innerHTML = `
@@ -125,10 +139,13 @@
       <div>
         <h4>${t('info')}</h4>
         <a href="#/velikosti">${t('sizeTable')}</a>
+        <a href="#/kontakt">${t('contact')}</a>
       </div>
       <div>
         <h4>${t('sellerContact')}</h4>
-        <a href="${TEL}">${CONTACT_PHONE}</a>
+        <a href="${TEL}">${t('phone')}: ${CONTACT_PHONE}</a>
+        <a href="${MAIL}">${t('email')}: ${CONTACT_EMAIL}</a>
+        <span>${t('vatNote', { rate: VAT_RATE })}</span>
       </div>`;
   }
 
@@ -234,6 +251,12 @@
     if (sort === 'levne') items = [...items].sort((a, b) => a.price - b.price);
     if (sort === 'drahe') items = [...items].sort((a, b) => b.price - a.price);
     if (sort === 'sleva') items = [...items].sort((a, b) => discount(b) - discount(a));
+    if (sort === 'abeceda') items = [...items].sort((a, b) => L(a.name).localeCompare(L(b.name), window.LANG === 'vi' ? 'vi' : 'cs'));
+    if (sort === 'bestseller') {
+      // Nejdřív produkty se štítkem Bestseller, pak ostatní se štítkem, nakonec zbytek
+      const rank = p => /bestseller/i.test(p.tag.cs || '') ? 0 : (p.tag.cs ? 1 : 2);
+      items = [...items].sort((a, b) => rank(a) - rank(b));
+    }
 
     const brands = CAT.brands.filter(b => all.some(p => p.brand === b.id));
     const colors = CAT.colors.filter(c => all.some(p => p.colors.includes(c.id)));
@@ -261,15 +284,13 @@
         <div class="toolbar-filters">
           ${sel('brand', t('brand'), t('allBrands'), brands.map(b => [b.id, b.name]))}
           ${sel('color', t('color'), t('allColors'), colors.map(c => [c.id, L(c.name)]))}
-          ${sizes.length > 1 ? `<span class="filter-label">${t('size')}:</span>
-            <button type="button" class="chip ${!filters.size ? 'active' : ''}" data-set="size" data-value="">${t('all')}</button>
-            ${sizes.map(s => `<button type="button" class="chip ${filters.size === s ? 'active' : ''}" data-set="size" data-value="${e(s)}">${e(s)}</button>`).join('')}` : ''}
+          ${sizes.length > 1 ? sel('size', t('size'), t('allSizes'), sizes.map(s => [s, s])) : ''}
         </div>
         <div class="toolbar-right">
           <span>${count(items.length)}</span>
           <label>${t('sort')}
             <select data-filter="sort">
-              ${[['doporucene', t('sortDefault')], ['levne', t('sortCheap')], ['drahe', t('sortExpensive')], ['sleva', t('sortSale')]]
+              ${[['doporucene', t('sortDefault')], ['bestseller', t('sortBest')], ['abeceda', t('sortAlpha')], ['levne', t('sortCheap')], ['drahe', t('sortExpensive')], ['sleva', t('sortSale')]]
                 .map(([v, txt]) => `<option value="${v}" ${filters.sort === v ? 'selected' : ''}>${txt}</option>`).join('')}
             </select>
           </label>
@@ -325,7 +346,7 @@
     return `
     <div class="wrap">
       <div class="pdp">
-        <div class="pdp-media ${p.image ? 'has-photo' : ''}" style="--bg:${c.bg}">${visual(p)}</div>
+        <div class="pdp-media ${p.image ? 'has-photo' : ''}" data-zoom="2.5" style="--bg:${c.bg}">${visual(p)}<span class="zoom-hint">🔍 ${HOVER ? t('zoomHover') : t('zoomTap')}</span></div>
         <div class="pdp-info">
           <div class="breadcrumbs"><a href="#/">${t('home')}</a> / <a href="#/kategorie/${p.cat}">${e(L(c.name))}</a>${ty ? ` / <a href="#/kategorie/${p.cat}" data-goto-type="${ty.id}">${e(L(ty.name))}</a>` : ''}</div>
           ${L(p.tag) ? `<div class="eyebrow" style="margin:0">${e(L(p.tag))}</div>` : ''}
@@ -347,6 +368,7 @@
             <b>${t('interested')}</b>
             <p>${t('interestedText', { name: e(name) })}</p>
             <a href="${TEL}" class="btn btn-block btn-lg">${phoneIcon()} ${t('call')} ${CONTACT_PHONE}</a>
+            <p class="or-mail">${t('orEmail')} <a href="${MAIL}?subject=${encodeURIComponent(t('emailSubject') + ': ' + name)}" class="link-inline">${CONTACT_EMAIL}</a></p>
             <p class="shipping-note" data-testid="shipping-note">${t('shippingNote')}</p>
           </div>
 
@@ -374,6 +396,33 @@
     </div>
     <div class="wrap" style="display:grid;gap:20px;padding-bottom:64px">
       ${['damske', 'panske', 'podprsenky', 'detske'].map(ch => `<div class="fieldset"><h3>${t('chartTitles')[ch]}</h3>${sizeTable(ch)}</div>`).join('')}
+    </div>`;
+  }
+
+  function pageContact() {
+    return `<div class="wrap page-head">
+      <div class="breadcrumbs"><a href="#/">${t('home')}</a> / ${t('contact')}</div>
+      <h1>${t('contact')}</h1>
+      <p>${t('contactLead')}</p>
+    </div>
+    <div class="wrap contact-cards">
+      <div class="contact-card">
+        <span class="contact-icon">${phoneIcon()}</span>
+        <h3>${t('phone')}</h3>
+        <p class="contact-value">${CONTACT_PHONE}</p>
+        <a href="${TEL}" class="btn">${t('call')}</a>
+      </div>
+      <div class="contact-card">
+        <span class="contact-icon">${mailIcon()}</span>
+        <h3>${t('email')}</h3>
+        <p class="contact-value">${CONTACT_EMAIL}</p>
+        <a href="${MAIL}" class="btn">${t('writeEmail')}</a>
+      </div>
+    </div>
+    <div class="wrap contact-info">
+      <p>${t('contactText')}</p>
+      <p>${t('shippingNote')}</p>
+      <p class="muted">${t('vatNote', { rate: VAT_RATE })}</p>
     </div>`;
   }
 
@@ -409,6 +458,7 @@
         if (byId[parts[1]]) { nav = byId[parts[1]].cat; title = L(byId[parts[1]].name); }
         break;
       case 'velikosti': html = pageSizes(); title = t('sizeTable'); break;
+      case 'kontakt': html = pageContact(); nav = 'kontakt'; title = t('contact'); break;
       default: html = pageNotFound();
     }
     app.innerHTML = html;
@@ -436,6 +486,43 @@
   document.addEventListener('change', ev => {
     const f = ev.target.closest('[data-filter]');
     if (f) { filters[f.dataset.filter] = f.value; render(true); }
+  });
+
+  /* ---------- Zoom fotek ---------- */
+
+  let zoomed = null;
+  function zoomAt(box, x, y) {
+    const img = box.querySelector(':scope > img, :scope > svg');
+    if (!img) return;
+    const r = box.getBoundingClientRect();
+    img.style.transformOrigin = `${((x - r.left) / r.width) * 100}% ${((y - r.top) / r.height) * 100}%`;
+    img.style.transform = `scale(${box.dataset.zoom})`;
+    box.classList.add('zooming');
+    zoomed = box;
+  }
+  function unzoom(box) {
+    if (!box) return;
+    const img = box.querySelector(':scope > img, :scope > svg');
+    if (img) img.style.transform = '';
+    box.classList.remove('zooming');
+    if (zoomed === box) zoomed = null;
+  }
+
+  // Myš: zvětšení sleduje kurzor
+  document.addEventListener('pointermove', ev => {
+    if (ev.pointerType !== 'mouse') return;
+    const box = ev.target.closest && ev.target.closest('[data-zoom]');
+    if (zoomed && zoomed !== box) unzoom(zoomed);
+    if (box) zoomAt(box, ev.clientX, ev.clientY);
+  });
+  document.addEventListener('pointerout', ev => { if (ev.pointerType === 'mouse' && !ev.relatedTarget) unzoom(zoomed); });
+
+  // Dotyk: v detailu produktu klepnutím zvětšit / zmenšit
+  document.addEventListener('click', ev => {
+    const box = ev.target.closest('.pdp-media[data-zoom]');
+    if (!box || HOVER) return;
+    if (box.classList.contains('zooming')) unzoom(box);
+    else zoomAt(box, ev.clientX, ev.clientY);
   });
 
   window.addEventListener('hashchange', () => render(false));

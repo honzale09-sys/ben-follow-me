@@ -1,6 +1,7 @@
 (() => {
   'use strict';
-  const { escapeHTML, productVisual, SIZE_CHARTS, SIZE_PRESETS, ART_TYPES, art } = window;
+  const { escapeHTML, productVisual, SIZE_CHARTS, SIZE_PRESETS, ART_TYPES, art, VAT_RATE } = window;
+  const netOf = price => new Intl.NumberFormat('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.round(price / (1 + VAT_RATE / 100) * 100) / 100) + '\u00a0Kč';
 
   const $ = sel => document.querySelector(sel);
   const e = escapeHTML;
@@ -16,7 +17,14 @@
   let photo = null;          // cesta k fotce u otevřeného produktu
   let pickedColors = [];     // barvy v pořadí výběru – první je hlavní
   let pendingDelete = null;
-  const view = { q: '', cat: '', brand: '' };
+  const view = { q: '', cat: '', brand: '', size: '', avail: '' };
+
+  // Všechny velikosti z produktů, seřazené od nejmenší
+  function allSizes(list) {
+    const order = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', ...Object.values(SIZE_PRESETS).flat()];
+    const rank = s => (order.indexOf(s) + 1) || 999;
+    return [...new Set(list.flatMap(p => p.sizes))].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b, 'cs', { numeric: true }));
+  }
 
   const form = $('[data-form]');
   const editor = $('[data-editor]');
@@ -143,10 +151,14 @@
           <input type="search" placeholder="Hledat podle názvu…" data-view="q" value="${e(view.q)}" aria-label="Hledat">
           <select data-view="cat" aria-label="Kategorie"><option value="">Všechny kategorie</option>${opts(catOpts(), view.cat)}<option value="__akce" ${view.cat === '__akce' ? 'selected' : ''}>Jen v akci</option></select>
           ${CAT.brands.length ? `<select data-view="brand" aria-label="Značka"><option value="">Všechny značky</option>${opts(CAT.brands.map(b => [b.id, b.name]), view.brand)}</select>` : ''}
+          <select data-view="size" aria-label="Velikost"><option value="">Všechny velikosti</option>${opts(allSizes(CAT.products).map(s => [s, 'Velikost ' + s]), view.size)}</select>
+          ${view.size ? `<select data-view="avail" aria-label="Dostupnost"><option value="">dostupné i nedostupné</option>${opts([['ano', 'jen dostupné'], ['ne', 'jen nedostupné']], view.avail)}</select>` : ''}
         </div>`,
       items: () => CAT.products.filter(p =>
         (!view.cat || (view.cat === '__akce' ? p.oldPrice : p.cat === view.cat)) &&
         (!view.brand || p.brand === view.brand) &&
+        (!view.size || (p.sizes.includes(view.size) &&
+          (!view.avail || (view.avail === 'ano') !== p.soldOut.includes(view.size)))) &&
         (!view.q || (cs(p.name) + ' ' + (p.name.vi || '')).toLowerCase().includes(view.q.toLowerCase()))),
       row: p => {
         const c = byIdIn('categories', p.cat);
@@ -158,9 +170,9 @@
           <div class="prow-main">
             <div class="prow-name">${e(cs(p.name))} ${cs(p.tag) ? `<span class="pill">${e(cs(p.tag))}</span>` : ''} ${p.oldPrice ? '<span class="pill pill-sale">AKCE</span>' : ''} ${p.name.vi ? '' : '<span class="pill pill-muted" title="Chybí vietnamský název">bez VI</span>'}</div>
             <div class="prow-meta">${c ? e(cs(c.name)) : '—'}${ty ? ' · ' + e(cs(ty.name)) : ''}${b ? ' · <b>' + e(b.name) + '</b>' : ''}</div>
-            <div class="prow-meta">${colors.map(x => `<span class="swatch${x.id === 'mix' ? ' mix' : ''}" style="background:${x.hex}" title="${e(cs(x.name))}"></span>`).join('')} ${p.sizes.map(s => p.soldOut.includes(s) ? `<s>${e(s)}</s>` : e(s)).join(' · ')}</div>
+            <div class="prow-meta">${colors.map(x => `<span class="swatch${x.id === 'mix' ? ' mix' : ''}" style="background:${x.hex}" title="${e(cs(x.name))}"></span>`).join('')} ${p.sizes.map(s => { const x = p.soldOut.includes(s) ? `<s>${e(s)}</s>` : e(s); return s === view.size ? `<mark>${x}</mark>` : x; }).join(' · ')}</div>
           </div>
-          <div class="prow-price">${czk(p.price)}${p.oldPrice ? `<s>${czk(p.oldPrice)}</s>` : ''}</div>
+          <div class="prow-price">${czk(p.price)}<small>${netOf(p.price)} bez DPH</small>${p.oldPrice ? `<s>${czk(p.oldPrice)}</s>` : ''}</div>
           <div class="prow-actions">
             <a href="./#/produkt/${p.id}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">Na webu ↗</a>
             <button type="button" class="btn btn-ghost btn-sm" data-edit="${p.id}">Upravit</button>
@@ -291,21 +303,30 @@
   function renderList() {
     const T = TABS[tab];
     const items = T.items();
-    $('[data-list]').innerHTML = items.length ? items.map(T.row).join('')
-      : `<div class="empty"><h2>Zatím tu nic není</h2><p>Klikněte na „${e(T.add.replace('+ ', ''))}“.</p></div>`;
+    const all = T.items === TABS.products.items ? CAT.products.length : items.length;
+    $('[data-list]').innerHTML = (items.length !== all ? `<p class="list-count">Zobrazeno ${items.length} z ${all}${view.size ? ` · velikost <b>${e(view.size)}</b>` : ''}</p>` : '') +
+      (items.length ? items.map(T.row).join('')
+      : `<div class="empty"><h2>${all ? 'Nic neodpovídá filtru' : 'Zatím tu nic není'}</h2><p>${all ? 'Zkuste filtr změnit.' : `Klikněte na „${e(T.add.replace('+ ', ''))}“.`}</p></div>`);
   }
 
   document.querySelector('.admin-tabs').addEventListener('click', ev => {
     const b = ev.target.closest('[data-tab]');
     if (!b) return;
     tab = b.dataset.tab;
-    Object.assign(view, { q: '', cat: '', brand: '' });
+    Object.assign(view, { q: '', cat: '', brand: '', size: '', avail: '' });
     renderTab();
   });
 
   $('[data-toolbar]').addEventListener('input', ev => {
     const f = ev.target.closest('[data-view]');
-    if (f) { view[f.dataset.view] = f.value; renderList(); }
+    if (!f) return;
+    view[f.dataset.view] = f.value;
+    if (f.dataset.view === 'size') {
+      // Výběr dostupnosti se ukáže jen při zvolené velikosti
+      if (!f.value) view.avail = '';
+      renderTab();
+      $('[data-toolbar] [data-view="size"]').focus();
+    } else renderList();
   });
 
   /* ---------- Formulář produktu ---------- */
@@ -328,7 +349,7 @@
         <div class="form-field" data-type-field>${typeSelect(p.cat, p.type)}</div>
         ${fSelect('brand', 'Značka', CAT.brands.map(b => [b.id, b.name]), p.brand, { empty: '— bez značky —' })}
         ${fSelect('art', 'Tvar ilustrace', Object.entries(ART_TYPES), p.art)}
-        ${fText('price', 'Cena (Kč)', p.price, { required: true, type: 'number', max: 7 })}
+        ${field('Cena s DPH (Kč) *', `<input name="price" type="number" value="${e(p.price)}" maxlength="7" required><div class="hint" data-net>${p.price !== '' ? 'Bez DPH: ' + netOf(p.price) : `Zadejte cenu včetně DPH ${VAT_RATE} %`}</div>`)}
         ${fText('oldPrice', 'Původní cena (Kč) – vyplňte pro AKCI', p.oldPrice || '', { type: 'number', max: 7, placeholder: 'jen u slevy' })}
         ${fText('pack', 'Počet ks v balení', p.pack || '', { max: 20, placeholder: 'např. 3' })}
         ${fLoc('tag', 'Štítek', p.tag, { placeholder: 'např. Novinka', max: 40 })}
@@ -448,6 +469,7 @@
     if (ev.target.type === 'color') ev.target.nextElementSibling.textContent = ev.target.value;
     if (tab !== 'products') return;
     if (n === 'sizes') renderSoldOut();
+    if (n === 'price') form.querySelector('[data-net]').textContent = val('price') ? 'Bez DPH: ' + netOf(+val('price')) : `Zadejte cenu včetně DPH ${VAT_RATE} %`;
     if (n === 'colors') {
       pickedColors = pickedColors.filter(id => id !== ev.target.value);
       if (ev.target.checked) pickedColors.push(ev.target.value);
